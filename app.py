@@ -1,44 +1,45 @@
 import pickle
-import os
 import numpy as np
-import pandas as pd
-from flask import Flask,redirect,url_for,render_template,request,jsonify
- 
+from flask import Flask, request, render_template, jsonify
 
-app=Flask(__name__)
-scalar=pickle.load(open('scaling.pkl','rb'))
-regmodel = pickle.load(open('regressionModel.pkl','rb'))
+app = Flask(__name__)
 
+# Load scaler and model
+scalar = pickle.load(open('scaling.pkl', 'rb'))
+regmodel = pickle.load(open('regressionModel.pkl', 'rb'))
 
-@app.route('/',methods=['GET','POST'])
+# Home route
+@app.route('/', methods=['GET'])
 def home():
-    if request.method=='POST':
-        # Handle POST Request here
-        return render_template('index.html')
     return render_template('index.html')
 
+# Predict from form
+@app.route('/predict', methods=['POST'])
+def predict():
+    try:
+        form_data = request.form.to_dict()
+        features = ['MedInc', 'HouseAge', 'AveRooms', 'AveBedrms', 'Population', 'AveOccup', 'Latitude', 'Longitude']
+        data = [float(form_data[feature]) for feature in features]
+        final_input = scalar.transform(np.array(data).reshape(1, -1))
+        output = regmodel.predict(final_input)[0]
+        return render_template('index.html', prediction_text=f'The house price prediction is ${output:.2f}')
+    except Exception as e:
+        return render_template('index.html', prediction_text=f'Error: {str(e)}')
+
+# Predict from API
 @app.route('/predict_api', methods=['POST'])
-def predict_Api():
-    data = request.json['data']
-    print(data)
-    
-    # Convert input to numpy array
-    input_array = np.array(list(data.values())).reshape(1, -1)
-    
-    # Apply scaling
-    new_data = scalar.transform(input_array)
-    
-    # Predict
-    output = regmodel.predict(new_data)
-    
-    # Convert to native float and return as JSON
-    return jsonify({'prediction': float(output[0])})
+def predict_api():
+    if request.json is None or 'data' not in request.json:
+        return jsonify({'error': 'Invalid input. Expecting JSON with a "data" key.'}), 400
 
-
-
-
-
+    try:
+        data = request.json['data']
+        input_array = np.array(list(data.values())).reshape(1, -1)
+        transformed = scalar.transform(input_array)
+        output = regmodel.predict(transformed)[0]
+        return jsonify({'prediction': float(output)})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    #DEBUG is SET to TRUE. CHANGE FOR PROD
-    app.run(port=5000,debug=True)
+    app.run(debug=True)
