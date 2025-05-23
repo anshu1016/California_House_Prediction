@@ -3,5 +3,6 @@ numpy
 matplotlib
 ipykernel
 scikit-learn
-
 seaborn
+flask
+jsonify
